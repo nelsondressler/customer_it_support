@@ -109,13 +109,24 @@ Technologies and Tools:
 - Docker
 
 Project Instructions:
+Requisites:
+- Python installed (version 3.11.6)
+- Poetry installed (version 2.1.1)
 To run the code:
 - Download the project or clone directly from the repo on GitHub
 - Open the terminal on your OS
 - Navigate up to the project root folder (customer_it_support)
 - Run the script according to your OS:
-    - In case of Unix-based, run: ./run_all_sh
-    - In case of Windows, run: run_all.bat
+    - In case of Unix-based, run:
+        ```bash
+        ./run_all_sh
+        ```
+
+    - In case of Windows, run:
+        ```bat
+        run_all.bat
+        ```
+
 - Open three tabs on your preferred browser and on each one enter the respective URL:
     - API: http://0.0.0.0:8000/
     - Gradio_App: http://127.0.0.1:7860/
@@ -132,3 +143,35 @@ TODO List:
 - Add unit test for each class method or entire data flow
 - Add integration tests between apps and API
 - Use a tool or a cloud based solution to perform an entire CI/CD flow
+
+## References
+
+- Customer IT Support - Ticket Dataset:
+    - [Kaggle](https://www.kaggle.com/datasets/tobiasbueck/multilingual-customer-support-tickets?resource=download)
+    - [Huggingface](https://huggingface.co/datasets/Tobi-Bueck/customer-support-tickets)
+
+- [Email Ticket Text Classification Dataset](https://medium.com/@softoft/email-ticket-text-german-classification-dataset-772d345e7a10)
+
+
+- [Generative AI for Text Classification](https://medium.com/@memrhimanshu/generative-ai-for-text-classification-1ceee4a0da79)
+
+
+- [BERT-Base](https://huggingface.co/docs/transformers/en/model_doc/bert)
+
+- [DistilBERT](https://huggingface.co/docs/transformers/en/model_doc/distilbert)
+
+- [Building an Email Classification Model with HuggingFace](https://balkaranbrar.medium.com/building-an-email-classification-model-with-huggingface-5e5e7f8f93b7)
+
+- [Fine-Tuning BERT for Text Classification: A Step-by-Step Guide with Code Examples](https://medium.com/@somasunder/fine-tuning-bert-for-text-classification-a-step-by-step-guide-with-code-examples-0dea8513bcf2)
+
+- [Fine tune BERT for text classification](https://medium.com/codex/fine-tune-bert-for-text-classification-cef7a1d6cdf1)
+
+- [Fine tuning a custom model with Gemini](https://medium.com/@sulbha.jindal/fine-tuning-a-custom-model-with-gemini-f94809086bf6)
+
+- [BERT Text Classification using Keras](https://swatimeena989.medium.com/bert-text-classification-using-keras-903671e0207d)
+
+- [Optimize Hugging Face models with Weights & Biases](https://colab.research.google.com/github/wandb/examples/blob/master/colabs/huggingface/Optimize_Hugging_Face_models_with_Weights_%26_Biases.ipynb#scrollTo=8XitzzgZN65d)
+
+- [Machine Learning Model deployment with FastAPI, Streamlit and Docker](https://medium.com/latinxinai/fastapi-and-streamlit-app-with-docker-compose-e4d18d78d61d)
+
+- [Python Poetry – The Best Data Science Dependency Management Tool?](https://towardsdatascience.com/python-poetry-the-best-data-science-dependency-management-tool-cca260257dd5/)
