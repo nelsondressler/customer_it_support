@@ -6,6 +6,27 @@ from fastapi import FastAPI, HTTPException
 import uvicorn
 
 import config
+from config import (
+    LOAD_MODE,
+    FIT_FLG,
+    VECTORIZER_PATH,
+    NB_PIPELINE_QUEUE_PATH,
+    NB_PIPELINE_PRIORITY_PATH,
+    NB_MODEL_QUEUE_PATH,
+    NB_MODEL_PRIORITY_PATH,
+    LR_PIPELINE_QUEUE_PATH,
+    LR_PIPELINE_PRIORITY_PATH,
+    LR_MODEL_QUEUE_PATH,
+    LR_MODEL_PRIORITY_PATH,
+    BERT_PIPELINE_QUEUE_PATH,
+    BERT_PIPELINE_PRIORITY_PATH,
+    BERT_MODEL_QUEUE_PATH,
+    BERT_MODEL_PRIORITY_PATH,
+    DISTILBERT_PIPELINE_QUEUE_PATH,
+    DISTILBERT_PIPELINE_PRIORITY_PATH,
+    DISTILBERT_MODEL_QUEUE_PATH,
+    DISTILBERT_MODEL_PRIORITY_PATH
+)
 
 from saved_datasets.data_examples import email_examples
 
@@ -36,9 +57,6 @@ def send_welcome():
 
 @app.post("/predict", response_model=PredictionResponse)
 def predict(email: EmailInput):
-    LOAD_MODE = os.getenv('LOAD_MODE')
-    FIT_FLG = eval(os.getenv('FIT_FLG'))
-
     # Preprocess the input text
     dict_email = {
         'language': 'en',
@@ -48,84 +66,72 @@ def predict(email: EmailInput):
     df_email = pd.DataFrame(dict_email, index=[0])
 
     if email.model_choice.lower() in ["nb", "lr"]:
-        if LOAD_MODE == 'model':
-            vectorizer_path = os.getenv('VECTORIZER_PATH')
-            vectorizer = VectorizerPreprocessor(from_file=True, file_path=vectorizer_path)
+        if not FIT_FLG:
+            if LOAD_MODE == 'model':
+                vectorizer = VectorizerPreprocessor(from_file=True, file_path=VECTORIZER_PATH)
 
-        if email.model_choice.lower() == 'nb':
-            if LOAD_MODE == 'pipeline':
-                nb_pipeline_queue_path = os.getenv('NB_PIPELINE_QUEUE_PATH')
-                nb_pipeline_priority_path = os.getenv('NB_PIPELINE_PRIORITY_PATH')
+            if email.model_choice.lower() == 'nb':
+                if LOAD_MODE == 'pipeline':
+                    pipeline_queue = PipelineModules(
+                        from_file=True,
+                        file_path=NB_PIPELINE_QUEUE_PATH
+                    )
 
-                pipeline_queue = PipelineModules(
-                    from_file=True,
-                    file_path=nb_pipeline_queue_path
-                )
+                    pipeline_priority = PipelineModules(
+                        from_file=True,
+                        file_path=NB_PIPELINE_PRIORITY_PATH
+                    )
+                elif LOAD_MODE == 'model':
+                    model_queue = BaselineModel(from_file=True, file_path=NB_MODEL_QUEUE_PATH)
+                    model_priority = BaselineModel(from_file=True, file_path=NB_MODEL_PRIORITY_PATH)
 
-                pipeline_priority = PipelineModules(
-                    from_file=True,
-                    file_path=nb_pipeline_priority_path
-                )
-            elif LOAD_MODE == 'model':
-                nb_model_queue_path = os.getenv('NB_MODEL_QUEUE_PATH')
-                nb_model_priority_path = os.getenv('NB_MODEL_PRIORITY_PATH')
+                    pipeline_queue = PipelineModules(steps=[
+                        ('email_preprocessor', EmailPreprocessor()),
+                        ('text_preprocessor', TextPreprocessor()),
+                        ('vectorizer', vectorizer),
+                        ('classifier', model_queue)
+                    ])
 
-                model_queue = BaselineModel(from_file=True, file_path=nb_model_queue_path)
-                model_priority = BaselineModel(from_file=True, file_path=nb_model_priority_path)
+                    pipeline_priority = PipelineModules(steps=[
+                        ('email_preprocessor', EmailPreprocessor()),
+                        ('text_preprocessor', TextPreprocessor()),
+                        ('vectorizer', vectorizer),
+                        ('classifier', model_priority)
+                    ])
 
-                pipeline_queue = PipelineModules(steps=[
-                    ('email_preprocessor', EmailPreprocessor()),
-                    ('text_preprocessor', TextPreprocessor()),
-                    ('vectorizer', vectorizer),
-                    ('classifier', model_queue)
-                ])
+            elif email.model_choice.lower() == 'lr':
+                if LOAD_MODE == 'pipeline':
+                    pipeline_queue = PipelineModules(
+                        from_file=True,
+                        file_path=LR_PIPELINE_QUEUE_PATH
+                    )
 
-                pipeline_priority = PipelineModules(steps=[
-                    ('email_preprocessor', EmailPreprocessor()),
-                    ('text_preprocessor', TextPreprocessor()),
-                    ('vectorizer', vectorizer),
-                    ('classifier', model_priority)
-                ])
+                    pipeline_priority = PipelineModules(
+                        from_file=True,
+                        file_path=LR_PIPELINE_PRIORITY_PATH
+                    )
+                elif LOAD_MODE == 'model':
+                    model_queue = BaselineModel(model_path=LR_MODEL_QUEUE_PATH)
+                    model_priority = BaselineModel(model_path=LR_MODEL_PRIORITY_PATH)
 
-        elif email.model_choice.lower() == 'lr':
-            if LOAD_MODE == 'pipeline':
-                lr_pipeline_queue_path = os.getenv('LR_PIPELINE_QUEUE_PATH')
-                lr_pipeline_priority_path = os.getenv('LR_PIPELINE_PRIORITY_PATH')
+                    pipeline_queue = PipelineModules(steps=[
+                        ('email_preprocessor', EmailPreprocessor()),
+                        ('text_preprocessor', TextPreprocessor()),
+                        ('vectorizer', vectorizer),
+                        ('classifier', model_queue)
+                    ])
 
-                pipeline_queue = PipelineModules(
-                    from_file=True,
-                    file_path=lr_pipeline_queue_path
-                )
+                    pipeline_priority = PipelineModules(steps=[
+                        ('email_preprocessor', EmailPreprocessor()),
+                        ('text_preprocessor', TextPreprocessor()),
+                        ('vectorizer', vectorizer),
+                        ('classifier', model_priority)
+                    ])
 
-                pipeline_priority = PipelineModules(
-                    from_file=True,
-                    file_path=lr_pipeline_priority_path
-                )
-            elif LOAD_MODE == 'model':
-                lr_model_queue_path = os.getenv('LR_MODEL_QUEUE_PATH')
-                lr_model_priority_path = os.getenv('LR_MODEL_PRIORITY_PATH')
+            if pipeline_queue.steps is None or pipeline_priority.steps is None:
+                raise HTTPException(status_code=400, detail="Pipeline not found")
 
-                model_queue = BaselineModel(model_path=lr_model_queue_path)
-                model_priority = BaselineModel(model_path=lr_model_priority_path)
-
-                pipeline_queue = PipelineModules(steps=[
-                    ('email_preprocessor', EmailPreprocessor()),
-                    ('text_preprocessor', TextPreprocessor()),
-                    ('vectorizer', vectorizer),
-                    ('classifier', model_queue)
-                ])
-
-                pipeline_priority = PipelineModules(steps=[
-                    ('email_preprocessor', EmailPreprocessor()),
-                    ('text_preprocessor', TextPreprocessor()),
-                    ('vectorizer', vectorizer),
-                    ('classifier', model_priority)
-                ])
-
-        if pipeline_queue.steps is None or pipeline_priority.steps is None:
-            raise HTTPException(status_code=400, detail="Pipeline not found")
-
-        if FIT_FLG:
+        else:
             pipeline_queue = PipelineModules(steps=[
                 ('email_preprocessor', EmailPreprocessor()),
                 ('text_preprocessor', TextPreprocessor()),
@@ -146,79 +152,68 @@ def predict(email: EmailInput):
 
     elif "bert" in email.model_choice.lower():
         device = get_available_device()
+        
+        if not FIT_FLG:
+            if email.model_choice.lower() == 'bert':
+                if LOAD_MODE == 'pipeline':
+                    pipeline_queue = PipelineModules(
+                        from_file=True,
+                        file_path=BERT_PIPELINE_QUEUE_PATH,
+                        device=device
+                    )
 
-        if email.model_choice.lower() == 'bert':
-            if LOAD_MODE == 'pipeline':
-                bert_pipeline_queue_path = os.getenv('BERT_PIPELINE_QUEUE_PATH')
-                bert_pipeline_priority_path = os.getenv('BERT_PIPELINE_PRIORITY_PATH')
+                    pipeline_priority = PipelineModules(
+                        from_file=True,
+                        file_path=BERT_PIPELINE_PRIORITY_PATH,
+                        device=device
+                    )
+                elif LOAD_MODE == 'model':
+                    model_queue = TransformerModel(from_filte=True, load_path=BERT_MODEL_QUEUE_PATH, device=device)
+                    model_priority = TransformerModel(from_file=True, load_path=BERT_MODEL_PRIORITY_PATH, device=device)
 
-                pipeline_queue = PipelineModules(
-                    from_file=True,
-                    file_path=bert_pipeline_queue_path,
-                    device=device
-                )
+                    pipeline_queue = PipelineModules(steps=[
+                        ('email_preprocessor', EmailPreprocessor()),
+                        ('text_preprocessor', TextPreprocessor()),
+                        ('classifier', model_queue)
+                    ])
 
-                pipeline_priority = PipelineModules(
-                    from_file=True,
-                    file_path=bert_pipeline_priority_path,
-                    device=device
-                )
-            elif LOAD_MODE == 'model':
-                bert_model_queue_path = os.getenv('BERT_TRANSFORMERS_MODEL_QUEUE_PATH')
-                bert_model_priority_path = os.getenv('BERT_TRANSFORMERS_MODEL_PRIORITY_PATH')
+                    pipeline_priority = PipelineModules(steps=[
+                        ('email_preprocessor', EmailPreprocessor()),
+                        ('text_preprocessor', TextPreprocessor()),
+                        ('classifier', model_priority)
+                    ])
 
-                model_queue = TransformerModel(from_filte=True, load_path=bert_model_queue_path, device=device)
-                model_priority = TransformerModel(from_file=True, load_path=bert_model_priority_path, device=device)
+            elif email.model_choice.lower() == 'distilbert':
+                if LOAD_MODE == 'pipeline':
+                    pipeline_queue = PipelineModules(
+                        from_file=True,
+                        file_path=DISTILBERT_PIPELINE_QUEUE_PATH,
+                        device=device
+                    )
 
-                pipeline_queue = PipelineModules(steps=[
-                    ('email_preprocessor', EmailPreprocessor()),
-                    ('text_preprocessor', TextPreprocessor()),
-                    ('classifier', model_queue)
-                ])
+                    pipeline_priority = PipelineModules(
+                        from_file=True,
+                        file_path=DISTILBERT_PIPELINE_PRIORITY_PATH,
+                        device=device
+                    )
 
-                pipeline_priority = PipelineModules(steps=[
-                    ('email_preprocessor', EmailPreprocessor()),
-                    ('text_preprocessor', TextPreprocessor()),
-                    ('classifier', model_priority)
-                ])
+                elif LOAD_MODE == 'model':
+                    model_queue = TransformerModel(model_path=DISTILBERT_MODEL_QUEUE_PATH, device=device)
+                    model_priority = TransformerModel(model_path=DISTILBERT_MODEL_PRIORITY_PATH, device=device)
 
-        elif email.model_choice.lower() == 'distilbert':
-            if LOAD_MODE == 'pipeline':
-                distilbert_pipeline_queue_path = os.getenv('DISTILBERT_PIPELINE_QUEUE_PATH')
-                distilbert_pipeline_priority_path = os.getenv('DISTILBERT_PIPELINE_PRIORITY_PATH')
+                    pipeline_queue = PipelineModules(steps=[
+                        ('email_preprocessor', EmailPreprocessor()),
+                        ('text_preprocessor', TextPreprocessor()),
+                        ('classifier', model_queue)
+                    ])
 
-                pipeline_queue = PipelineModules(
-                    from_file=True,
-                    file_path=distilbert_pipeline_queue_path,
-                    device=device
-                )
+                    pipeline_priority = PipelineModules(steps=[
+                        ('email_preprocessor', EmailPreprocessor()),
+                        ('text_preprocessor', TextPreprocessor()),
+                        ('classifier', model_priority)
+                    ])
 
-                pipeline_priority = PipelineModules(
-                    from_file=True,
-                    file_path=distilbert_pipeline_priority_path,
-                    device=device
-                )
-
-            elif LOAD_MODE == 'model':
-                distilbert_model_queue_path = os.getenv('DISTILBERT_TRANSFORMERS_MODEL_QUEUE_PATH')
-                distilbert_model_priority_path = os.getenv('DISTILBERT_TRANSFORMERS_MODEL_PRIORITY_PATH')
-
-                model_queue = TransformerModel(model_path=distilbert_model_queue_path, device=device)
-                model_priority = TransformerModel(model_path=distilbert_model_priority_path, device=device)
-
-                pipeline_queue = PipelineModules(steps=[
-                    ('email_preprocessor', EmailPreprocessor()),
-                    ('text_preprocessor', TextPreprocessor()),
-                    ('classifier', model_queue)
-                ])
-
-                pipeline_priority = PipelineModules(steps=[
-                    ('email_preprocessor', EmailPreprocessor()),
-                    ('text_preprocessor', TextPreprocessor()),
-                    ('classifier', model_priority)
-                ])
-
-        if FIT_FLG:
+        else:
             pipeline_queue = PipelineModules(steps=[
                 ('email_preprocessor', EmailPreprocessor()),
                 ('text_preprocessor', TextPreprocessor()),

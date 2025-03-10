@@ -3,6 +3,8 @@ saved_datasets/raw/
 saved_datasets/processed/
 saved_models/baseline/
 saved_models/transformers/
+saved_pipelines/baseline/
+saved_pipelines/transformers/
 notebooks/results
 
 # Byte-compiled / optimized / DLL files
