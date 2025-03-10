@@ -6,7 +6,7 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException
 import uvicorn
 
-import src.config as config
+import config
 
 from saved_datasets.data_examples import email_examples
 

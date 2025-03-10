@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 import os
 
-import src.config as config
+import config
 
 API_URL = config.API_URL
 

@@ -3,7 +3,7 @@ import requests
 
 import gradio as gr
 
-import src.config as config
+import config
 
 # URL of the locally running API server
 API_URL = config.API_URL
