@@ -2,7 +2,9 @@ import streamlit as st
 import requests
 import os
 
-API_URL = os.getenv("API_URL", "http://localhost:8000/predict")
+import src.config as config
+
+API_URL = config.API_URL
 
 st.title("Customer IT Support Email Classifier")  # Matching Gradio's title
 

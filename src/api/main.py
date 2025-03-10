@@ -1,32 +1,12 @@
 import os
+from typing import Union
 
 import pandas as pd
 
 from fastapi import FastAPI, HTTPException
 import uvicorn
 
-import config
-from config import (
-    LOAD_MODE,
-    FIT_FLG,
-    VECTORIZER_PATH,
-    NB_PIPELINE_QUEUE_PATH,
-    NB_PIPELINE_PRIORITY_PATH,
-    NB_MODEL_QUEUE_PATH,
-    NB_MODEL_PRIORITY_PATH,
-    LR_PIPELINE_QUEUE_PATH,
-    LR_PIPELINE_PRIORITY_PATH,
-    LR_MODEL_QUEUE_PATH,
-    LR_MODEL_PRIORITY_PATH,
-    BERT_PIPELINE_QUEUE_PATH,
-    BERT_PIPELINE_PRIORITY_PATH,
-    BERT_MODEL_QUEUE_PATH,
-    BERT_MODEL_PRIORITY_PATH,
-    DISTILBERT_PIPELINE_QUEUE_PATH,
-    DISTILBERT_PIPELINE_PRIORITY_PATH,
-    DISTILBERT_MODEL_QUEUE_PATH,
-    DISTILBERT_MODEL_PRIORITY_PATH
-)
+import src.config as config
 
 from saved_datasets.data_examples import email_examples
 
@@ -35,7 +15,7 @@ from src.backend.preprocessing import SplitterPreprocessor, EmailPreprocessor, R
 from src.backend.models import BaselineModel, TransformerModel
 from src.backend.pipelines import PipelineModules
 
-from src.utils.pydantic_models import EmailInput, PredictionResponse
+from src.utils.pydantic_models import EmailInput, FitModelResponse, FitPipelineResponse, ModelInput, PipelineInput, PredictionResponse
 from src.utils.labels import label_queue_values, label_priority_values
 from src.utils.devices import get_available_device
 
@@ -66,24 +46,24 @@ def predict(email: EmailInput):
     df_email = pd.DataFrame(dict_email, index=[0])
 
     if email.model_choice.lower() in ["nb", "lr"]:
-        if not FIT_FLG:
-            if LOAD_MODE == 'model':
-                vectorizer = VectorizerPreprocessor(from_file=True, file_path=VECTORIZER_PATH)
+        if not config.FIT_FLG:
+            if config.LOAD_MODE == 'model':
+                vectorizer = VectorizerPreprocessor(from_file=True, file_path=config.VECTORIZER_PATH)
 
             if email.model_choice.lower() == 'nb':
-                if LOAD_MODE == 'pipeline':
+                if config.LOAD_MODE == 'pipeline':
                     pipeline_queue = PipelineModules(
                         from_file=True,
-                        file_path=NB_PIPELINE_QUEUE_PATH
+                        file_path=config.config.NB_PIPELINE_QUEUE_PATH
                     )
 
                     pipeline_priority = PipelineModules(
                         from_file=True,
-                        file_path=NB_PIPELINE_PRIORITY_PATH
+                        file_path=config.NB_PIPELINE_PRIORITY_PATH
                     )
-                elif LOAD_MODE == 'model':
-                    model_queue = BaselineModel(from_file=True, file_path=NB_MODEL_QUEUE_PATH)
-                    model_priority = BaselineModel(from_file=True, file_path=NB_MODEL_PRIORITY_PATH)
+                elif config.LOAD_MODE == 'model':
+                    model_queue = BaselineModel(from_file=True, file_path=config.NB_MODEL_QUEUE_PATH)
+                    model_priority = BaselineModel(from_file=True, file_path=config.NB_MODEL_PRIORITY_PATH)
 
                     pipeline_queue = PipelineModules(steps=[
                         ('email_preprocessor', EmailPreprocessor()),
@@ -100,19 +80,19 @@ def predict(email: EmailInput):
                     ])
 
             elif email.model_choice.lower() == 'lr':
-                if LOAD_MODE == 'pipeline':
+                if config.LOAD_MODE == 'pipeline':
                     pipeline_queue = PipelineModules(
                         from_file=True,
-                        file_path=LR_PIPELINE_QUEUE_PATH
+                        file_path=config.LR_PIPELINE_QUEUE_PATH
                     )
 
                     pipeline_priority = PipelineModules(
                         from_file=True,
-                        file_path=LR_PIPELINE_PRIORITY_PATH
+                        file_path=config.LR_PIPELINE_PRIORITY_PATH
                     )
-                elif LOAD_MODE == 'model':
-                    model_queue = BaselineModel(model_path=LR_MODEL_QUEUE_PATH)
-                    model_priority = BaselineModel(model_path=LR_MODEL_PRIORITY_PATH)
+                elif config.LOAD_MODE == 'model':
+                    model_queue = BaselineModel(model_path=config.LR_MODEL_QUEUE_PATH)
+                    model_priority = BaselineModel(model_path=config.LR_MODEL_PRIORITY_PATH)
 
                     pipeline_queue = PipelineModules(steps=[
                         ('email_preprocessor', EmailPreprocessor()),
@@ -153,23 +133,23 @@ def predict(email: EmailInput):
     elif "bert" in email.model_choice.lower():
         device = get_available_device()
         
-        if not FIT_FLG:
+        if not config.FIT_FLG:
             if email.model_choice.lower() == 'bert':
-                if LOAD_MODE == 'pipeline':
+                if config.LOAD_MODE == 'pipeline':
                     pipeline_queue = PipelineModules(
                         from_file=True,
-                        file_path=BERT_PIPELINE_QUEUE_PATH,
+                        file_path=config.BERT_PIPELINE_QUEUE_PATH,
                         device=device
                     )
 
                     pipeline_priority = PipelineModules(
                         from_file=True,
-                        file_path=BERT_PIPELINE_PRIORITY_PATH,
+                        file_path=config.BERT_PIPELINE_PRIORITY_PATH,
                         device=device
                     )
-                elif LOAD_MODE == 'model':
-                    model_queue = TransformerModel(from_filte=True, load_path=BERT_MODEL_QUEUE_PATH, device=device)
-                    model_priority = TransformerModel(from_file=True, load_path=BERT_MODEL_PRIORITY_PATH, device=device)
+                elif config.LOAD_MODE == 'model':
+                    model_queue = TransformerModel(from_filte=True, load_path=config.BERT_MODEL_QUEUE_PATH, device=device)
+                    model_priority = TransformerModel(from_file=True, load_path=config.BERT_MODEL_PRIORITY_PATH, device=device)
 
                     pipeline_queue = PipelineModules(steps=[
                         ('email_preprocessor', EmailPreprocessor()),
@@ -184,22 +164,22 @@ def predict(email: EmailInput):
                     ])
 
             elif email.model_choice.lower() == 'distilbert':
-                if LOAD_MODE == 'pipeline':
+                if config.LOAD_MODE == 'pipeline':
                     pipeline_queue = PipelineModules(
                         from_file=True,
-                        file_path=DISTILBERT_PIPELINE_QUEUE_PATH,
+                        file_path=config.DISTILBERT_PIPELINE_QUEUE_PATH,
                         device=device
                     )
 
                     pipeline_priority = PipelineModules(
                         from_file=True,
-                        file_path=DISTILBERT_PIPELINE_PRIORITY_PATH,
+                        file_path=config.DISTILBERT_PIPELINE_PRIORITY_PATH,
                         device=device
                     )
 
-                elif LOAD_MODE == 'model':
-                    model_queue = TransformerModel(model_path=DISTILBERT_MODEL_QUEUE_PATH, device=device)
-                    model_priority = TransformerModel(model_path=DISTILBERT_MODEL_PRIORITY_PATH, device=device)
+                elif config.LOAD_MODE == 'model':
+                    model_queue = TransformerModel(model_path=config.DISTILBERT_MODEL_QUEUE_PATH, device=device)
+                    model_priority = TransformerModel(model_path=config.DISTILBERT_MODEL_PRIORITY_PATH, device=device)
 
                     pipeline_queue = PipelineModules(steps=[
                         ('email_preprocessor', EmailPreprocessor()),
@@ -258,3 +238,13 @@ def predict(email: EmailInput):
     pred_priority_name = label_priority_values[pred_priority]
 
     return PredictionResponse(queue=pred_queue_name, priority=pred_priority_name, details=details)
+
+
+@app.post("/fit", response_model=Union[FitModelResponse, FitPipelineResponse])
+async def fit(details_input: Union[ModelInput, PipelineInput]) -> PipelineModules:
+    raise NotImplementedError('This endpoint is not implemented yet')
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    # uvicorn main:app --reload --host 0.0.0.0 --port 8000
