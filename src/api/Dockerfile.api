@@ -1,0 +1,23 @@
+FROM python:3.11.6-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install Poetry
+RUN pip install poetry
+
+# Copy Poetry dependency files separately (optimizing caching)
+COPY pyproject.toml poetry.lock* ./
+
+# Install dependencies without creating a virtual environment
+RUN poetry config virtualenvs.create false && poetry install --no-dev --no-root
+
+# Copy the API source code **after** installing dependencies
+COPY src/api/ ./src/api/
+COPY src/backend/ ./src/backend/
+
+# Expose API port
+EXPOSE 8000
+
+# Run FastAPI
+CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

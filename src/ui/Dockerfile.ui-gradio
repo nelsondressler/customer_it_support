@@ -1,0 +1,17 @@
+FROM python:3.11.6-slim
+
+WORKDIR /app
+
+RUN pip install poetry
+
+# Copy Poetry files first (cache optimization)
+COPY pyproject.toml poetry.lock* ./
+
+RUN poetry config virtualenvs.create false && poetry install --no-dev --no-root
+
+# Copy UI source code
+COPY src/ui/ ./src/ui/
+
+EXPOSE 7860
+
+CMD ["python", "src/ui/gradio_app.py"]

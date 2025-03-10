@@ -1,0 +1,35 @@
+version: "3.8"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - ENV=production
+
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui-streamlit
+    ports:
+      - "8501:8501"
+    volumes:
+      - .:/app
+    environment:
+      - ENV=production
+
+  gradio:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui-gradio
+    ports:
+      - "7860:7860"
+    volumes:
+      - .:/app
+    environment:
+      - ENV=production
