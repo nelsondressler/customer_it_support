@@ -48,6 +48,7 @@ pytest = "^7.0"
 black = "^24.0"
 flake8 = "^6.0"
 mypy = "^1.0"
+ipykernel = "^6.29.5"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
