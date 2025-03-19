@@ -109,7 +109,7 @@ Technologies and Tools:
 - Docker
 
 Project Instructions:
-Requisites:
+Prerequisites:
 - Python installed (version 3.11.6)
 - Poetry installed (version 2.1.1)
 To run the code:

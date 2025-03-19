@@ -10,18 +10,136 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin, clone
+from sklearn.base import BaseEstimator, TransformerMixin, check_is_fitted
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder, MinMaxScaler, StandardScaler
-from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.model_selection import train_test_split
 
 import nltk
 import spacy
 
-class EmailPreprocessor(BaseEstimator, TransformerMixin):
-    def __init__(self) -> None:
-        pass
+import langdetect
+
+class BasePreprocessor(BaseEstimator, TransformerMixin):
+    def __init__(self, load_path: str = '', save_path: str = '') -> None:
+        self.load_path = load_path
+        self.save_path = save_path
+    
+    def load_from_path(self):
+        try:
+            with open(self.load_path, 'rb') as f:
+                return pickle.load(f)
+        except FileNotFoundError:
+            raise FileNotFoundError(f'File not found: {self.load_path}')
+    
+    def save_to_path(self):
+        try:
+            with open(self.save_path, 'wb') as f:
+                pickle.dump(self, f)
+        except FileNotFoundError:
+            print(f'File not found: {self.save_path}')
+    
+    def fit(self, X, y=None):
+        return self
+    
+    def transform(self, X, y=None):
+        return X
+    
+    def is_fitted(self):
+        return check_is_fitted(self)
+
+
+class SplitterPreprocessor(BasePreprocessor):
+    def __init__(
+        self,
+        from_file: bool = False,
+        load_path: str = '',
+        save_path: str = '',
+        split_mode: str = 'train_val_test',
+        test_size: float = 0.2,
+        val_size: float = 0.2,
+        random_state: int = 42
+    ) -> None:
+        super().__init__(load_path=load_path, save_path=save_path)
+        
+        self.from_file = from_file
+        
+        if from_file:
+            try:
+                self = super().load_from_path()
+            except FileNotFoundError:
+                raise FileNotFoundError(f'File not found: {self.load_path}')
+        
+        else:
+            self.split_mode = split_mode
+            self.test_size = test_size
+            self.val_size = val_size
+            self.random_state = random_state
+        
+    def fit(self, df: pd.DataFrame):
+        return self
+
+    def transform(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        df_prep = df.copy()
+
+        if self.split_mode == 'train_val_test':
+            df_train, df_val, df_test = self.split_train_val_test(df_prep)
+        elif self.split_mode == 'train_test':
+            df_train, df_test = self.split_train_test(df_prep)
+            df_val = None
+        elif self.split_mode == 'train_val':
+            df_train, df_val = self.split_train_val(df_prep)
+            df_test = None
+        else:
+            raise ValueError(f'Invalid value for split_mode: {self.split_mode}')
+
+        self.df_train_ = df_train
+        self.df_val_ = df_val
+        self.df_test_ = df_test
+
+        return df_train
+
+    def split_train_val_test(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        df_train_val, df_test = train_test_split(df, test_size=self.test_size, random_state=self.random_state)
+        df_train, df_val = train_test_split(df_train_val, test_size=self.val_size, random_state=self.random_state)
+
+        return df_train, df_val, df_test
+
+    def split_train_test(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        df_train, df_test = train_test_split(df, test_size=self.test_size, random_state=self.random_state)
+
+        return df_train, df_test
+
+    def split_train_val(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        df_train, df_val = train_test_split(df, test_size=self.val_size, random_state=self.random_state)
+
+        return df_train, df_val
+    
+    def get_splits(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        return self.df_train_, self.df_val_, self.df_test_
+    
+    def get_split(self, dataset_type: str = 'train') -> pd.DataFrame:
+        if dataset_type == 'train':
+            return self.df_train_
+        elif dataset_type == 'val':
+            return self.df_val_
+        elif dataset_type == 'test':
+            return self.df_test_
+        else:
+            raise ValueError(f'Invalid value for dataset_type: {dataset_type}')
+
+
+class EmailPreprocessor(BasePreprocessor):
+    def __init__(self, from_file: bool = False, load_path: str = '', save_path: str = '') -> None:
+        super().__init__(load_path=load_path, save_path=save_path)
+        
+        self.from_file = from_file
+        
+        if from_file:
+            try:
+                self = super().load_from_path()
+            except FileNotFoundError:
+                raise FileNotFoundError(f'File not found: {self.load_path}')
 
     def fit(self, df: pd.DataFrame):
         return self
@@ -79,22 +197,36 @@ class EmailPreprocessor(BaseEstimator, TransformerMixin):
         except langdetect.lang_detect_exception.LangDetectException:
             return 'unknown'
 
-class ResamplingPreprocessor(BaseEstimator, TransformerMixin):
+class ResamplingPreprocessor(BasePreprocessor):
     def __init__(
         self,
-        label_columns: str | List[str],
+        from_file: bool = False,
+        load_path: str = '',
+        save_path: str = '',
+        label_columns: str | List[str] = ['label'],
         resample_mode: str = 'undersample',
         random_state: int = 42,
         n_samples_each_category: int = None
     ) -> None:
-        if type(label_columns) == str:
-            self.label_columns = [label_columns]
+        super().__init__(load_path=load_path, save_path=save_path)
+        
+        self.from_file = from_file
+        
+        if from_file:
+            try:
+                self = super().load_from_path()
+            except FileNotFoundError:
+                raise FileNotFoundError(f'File not found: {self.load_path}')
+        
         else:
-            self.label_columns = label_columns
+            if type(label_columns) is str:
+                self.label_columns = [label_columns]
+            else:
+                self.label_columns = label_columns
 
-        self.random_state = random_state
-        self.resample_mode = resample_mode
-        self.n_samples_each_category = n_samples_each_category
+            self.random_state = random_state
+            self.resample_mode = resample_mode
+            self.n_samples_each_category = n_samples_each_category
 
     def fit(self, df: pd.DataFrame):
         return self
@@ -163,68 +295,13 @@ class ResamplingPreprocessor(BaseEstimator, TransformerMixin):
 
         return oversampled_dfs
 
-class SplitterPreprocessor(BaseEstimator, TransformerMixin):
+
+class TextPreprocessor(BasePreprocessor):
     def __init__(
         self,
-        split_mode: str = 'train_val_test',
-        retrieve: str = 'all',
-        test_size: float = 0.2,
-        val_size: float = 0.2,
-        random_state: int = 42
-    ) -> None:
-        self.split_mode = split_mode
-        self.retrieve = retrieve
-
-        self.test_size = test_size
-        self.val_size = val_size
-
-        self.random_state = random_state
-
-    def fit(self, df: pd.DataFrame):
-        return self
-
-    def transform(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        df_prep = df.copy()
-
-        if self.split_mode == 'train_val_test':
-            df_train, df_val, df_test = self.split_train_val_test(df_prep)
-        elif self.split_mode == 'train_test':
-            df_train, df_test = self.split_train_test(df_prep)
-        elif self.split_mode == 'train_val':
-            df_train, df_val = self.split_train_val(df_prep)
-        else:
-            raise ValueError(f'Invalid value for split_mode: {self.split_mode}')
-
-        if self.retrieve == 'all':
-            return df_train, df_val, df_test
-        elif self.retrieve == 'train':
-            return df_train
-        elif self.retrieve == 'val':
-            return df_val
-        elif self.retrieve == 'test':
-            return df_test
-        else:
-            raise ValueError(f'Invalid value for retrieve: {self.retrieve}')
-
-    def split_train_val_test(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        df_train_val, df_test = train_test_split(df, test_size=self.test_size, random_state=self.random_state)
-        df_train, df_val = train_test_split(df_train_val, test_size=self.val_size, random_state=self.random_state)
-
-        return df_train, df_val, df_test
-
-    def split_train_test(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        df_train, df_test = train_test_split(df, test_size=self.test_size, random_state=self.random_state)
-
-        return df_train, df_test
-
-    def split_train_val(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        df_train, df_val = train_test_split(df, test_size=self.val_size, random_state=self.random_state)
-
-        return df_train, df_val
-
-class TextPreprocessor(BaseEstimator, TransformerMixin):
-    def __init__(
-        self,
+        from_file: bool = False,
+        load_path: str = '',
+        save_path: str = '',
         stopwords: List[str] = None,
         flg_stemm: bool = False,
         flg_lemm: bool = False,
@@ -232,13 +309,24 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
         flg_punctuation: bool = True,
         flg_numbers: bool = True
     ) -> None:
-        self.flg_stemm = flg_stemm
-        self.flg_lemm = flg_lemm
-        self.flg_stopwords = flg_stopwords
-        self.flg_punctuation = flg_punctuation
-        self.flg_numbers = flg_numbers
+        super().__init__(load_path=load_path, save_path=save_path)
+        
+        self.from_file = from_file
+        
+        if from_file:
+            try:
+                self = super().load_from_path()
+            except FileNotFoundError:
+                raise FileNotFoundError(f'File not found: {self.load_path}')
+        
+        else:
+            self.flg_stemm = flg_stemm
+            self.flg_lemm = flg_lemm
+            self.flg_stopwords = flg_stopwords
+            self.flg_punctuation = flg_punctuation
+            self.flg_numbers = flg_numbers
 
-        self.load_stopwords(stopwords=stopwords)
+            self.load_stopwords(stopwords=stopwords)
 
     def fit(self, df: pd.DataFrame):
         return self
@@ -307,15 +395,34 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
 
         return text
 
-class LabelPreprocessor(BaseEstimator, TransformerMixin):
-    def __init__(self, label_column_name: str, encoder_mode: str = 'label') -> None:
-        self.label_column_name = label_column_name
-        self.encoder_mode = encoder_mode
 
-        if self.encoder_mode == 'label':
-            self.encoder = LabelEncoder()
-        elif self.encoder_mode == 'onehot':
-            self.encoder = OneHotEncoder()
+class LabelPreprocessor(BasePreprocessor):
+    def __init__(
+        self,
+        from_file: bool = False,
+        load_path: str = '',
+        save_path: str = '',
+        label_column_name: str = 'label',
+        encoder_mode: str = 'label'
+    ) -> None:
+        super().__init__(load_path=load_path, save_path=save_path)
+
+        self.from_file = from_file
+
+        if from_file:
+            try:
+                self = super().load_from_path()
+            except FileNotFoundError:
+                raise FileNotFoundError(f'File not found: {self.load_path}')
+        
+        else:
+            self.label_column_name = label_column_name
+            self.encoder_mode = encoder_mode
+
+            if self.encoder_mode == 'label':
+                self.encoder = LabelEncoder()
+            elif self.encoder_mode == 'onehot':
+                self.encoder = OneHotEncoder()
 
     def fit(self, df: pd.DataFrame):
         return self
@@ -354,31 +461,34 @@ class LabelPreprocessor(BaseEstimator, TransformerMixin):
 
         return df_prep
 
-class VectorizerPreprocessor(BaseEstimator, TransformerMixin):
+
+class VectorizerPreprocessor(BasePreprocessor):
     def __init__(
         self,
         from_file: bool = False,
-        file_path: str = '',
+        load_path: str = '',
+        save_path: str = '',
         vectorizer_mode: str = 'TfIdfVectorizer'
     ) -> None:
+        super().__init__(load_path=load_path, save_path=save_path)
+        
         self.from_file = from_file
-        self.file_path = file_path
-        self.vectorizer_mode = vectorizer_mode
-
+        
         if from_file:
             try:
-                self.vectorizer = self.load_vectorizer(file_path)
-                self.vectorizer_mode = self.vectorizer.__class__.__name__
+                self = super().load_from_path()
             except FileNotFoundError:
-                self.vectorizer = TfidfVectorizer(ngram_range=(1, 1), smooth_idf=True, use_idf=True)
-                self.vectorizer_mode = self.vectorizer.__class__.__name__
+                raise FileNotFoundError(f'File not found: {self.load_path}')
 
-        elif self.vectorizer_mode == 'TfIdfVectorizer':
-            self.vectorizer = TfidfVectorizer(ngram_range=(1, 1), smooth_idf=True, use_idf=True)
-        elif self.vectorizer_mode == 'CountVectorizer':
-            self.vectorizer = CountVectorizer()
         else:
-            raise ValueError(f'Invalid value for vectorizer_mode: {self.vectorizer_mode}')
+            self.vectorizer_mode = vectorizer_mode
+            
+            if self.vectorizer_mode == 'TfIdfVectorizer':
+                self.vectorizer = TfidfVectorizer(ngram_range=(1, 1), smooth_idf=True, use_idf=True)
+            elif self.vectorizer_mode == 'CountVectorizer':
+                self.vectorizer = CountVectorizer()
+            else:
+                raise ValueError(f'Invalid value for vectorizer_mode: {self.vectorizer_mode}')
 
     def fit(self, df: pd.DataFrame):
         df_prep = df.copy()
@@ -418,21 +528,3 @@ class VectorizerPreprocessor(BaseEstimator, TransformerMixin):
 
     def get_vocabulary(self):
         return self.vectorizer.vocabulary_
-
-    def load_vectorizer(self, file_path: str):
-        try:
-            with open(file_path, 'rb') as f:
-                vectorizer = pickle.load(f)
-        except FileNotFoundError:
-            print(f'File not found: {file_path}')
-            vectorizer = None
-
-        return vectorizer
-
-    def save_vectorizer(self, file_path: str):
-        try:
-            with open(file_path, 'wb') as f:
-                pickle.dump(self.vectorizer, f)
-        except FileNotFoundError:
-            print(f'File not found: {file_path}')
-            vectorizer = None

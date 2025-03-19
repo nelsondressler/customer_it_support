@@ -10,16 +10,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin, clone
-from sklearn.pipeline import Pipeline, make_pipeline
-from sklearn.model_selection import train_test_split
-
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.naive_bayes import MultinomialNB, BernoulliNB, GaussianNB
-from sklearn.linear_model import LogisticRegression
-from sklearn.svm import SVC
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.base import BaseEstimator, ClassifierMixin, check_is_fitted
 
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, precision_recall_fscore_support, roc_auc_score, roc_curve
 
@@ -32,45 +23,66 @@ import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments
 
 import wandb
+import config
 
-class BaselineModel(BaseEstimator, ClassifierMixin):
-    model_mapping = {
-        'MultinomialNB': MultinomialNB,
-        'BernoulliNB': BernoulliNB,
-        'GaussianNB': GaussianNB,
-        'LogisticRegression': LogisticRegression,
-        'KNeighborsClassifier': KNeighborsClassifier,
-        'SVC': SVC,
-        'DecisionTreeClassifier': DecisionTreeClassifier,
-        'RandomForestClassifier': RandomForestClassifier,
-        'GradientBoostingClassifier': GradientBoostingClassifier
-    }
+from src.utils.artifacts import models_mapping
 
+class BaseModel(BaseEstimator, ClassifierMixin):
+    def __init__(self, load_path: str, save_path: str) -> None:
+        self.load_path = load_path
+        self.save_path = save_path
+    
+    def load_from_path(self):
+        try:
+            with open(self.load_path, 'rb') as f:
+                return pickle.load(f)
+        except FileNotFoundError:
+            raise FileNotFoundError(f'File not found: {self.load_path}')
+    
+    def save_to_path(self):
+        try:
+            with open(self.save_path, 'wb') as f:
+                pickle.dump(self, f)
+        except FileNotFoundError:
+            print(f'File not found: {self.save_path}')
+    
+    def fit(self, X, y):
+        return self
+    
+    def predict(self, X):
+        return np.zeros(len(X))
+    
+    def is_fitted(self):
+        return check_is_fitted(self)
+    
+
+class BaselineModel(BaseEstimator):
+    models_mapping = models_mapping
+    
     def __init__(
         self,
         from_file: bool = False,
-        file_path: str = '',
-        model: Union[str, BaseEstimator] = 'LogisticRegression',
+        load_path: str = '',
+        save_path: str = '',
+        model: str = 'LogisticRegression',
         input_column_names_numeric: bool = False,
         input_column_names: List[str] | str = 'text',
         output_column_name: str = 'label',
         device: str = 'cpu',
         **kwargs
     ) -> None:
+        super().__init__(load_path=load_path, save_path=save_path)
+        
         if from_file:
             try:
-                self.model = self.load_model(file_path)
-                self.model_name = self.model.__class__.__name__
+                self = super().load_from_path()
             except FileNotFoundError:
-                self.model = self.model_mapping[model](**kwargs)
-                self.model_name = model
-        elif type(model) == str:
-            self.model = self.model_mapping[model](**kwargs)
-            self.model_name = model
+                raise FileNotFoundError(f'File not found: {self.load_path}')
+        
         else:
-            self.model = model
-            self.model_name = model.__class__.__name__
-
+            self.model = self.models_mapping[model](**kwargs)
+            self.model_name = model
+        
         self.device = device
 
         self.kwargs = kwargs
@@ -79,7 +91,7 @@ class BaselineModel(BaseEstimator, ClassifierMixin):
 
         if input_column_names_numeric:
             self.input_column_names = None
-        elif type(input_column_names) == str:
+        elif type(input_column_names) is str:
             self.input_column_names = [input_column_names]
         else:
             self.input_column_names = input_column_names
@@ -139,25 +151,10 @@ class BaselineModel(BaseEstimator, ClassifierMixin):
     def set_params(self, **params):
         return self.model.set_params(**params)
 
-    def load_model(self, file_path: str):
-        try:
-            with open(file_path, 'rb') as f:
-                model = pickle.load(f)
-        except FileNotFoundError:
-            print(f'File not found: {file_path}')
-            model = None
 
-        return model
-
-    def save_model(self, file_path: str):
-        try:
-            with open(file_path, 'wb') as f:
-                pickle.dump(self.model, f)
-        except FileNotFoundError:
-            print(f'File not found: {file_path}')
-            model = None
-
-class TransformerModel(BaseEstimator, ClassifierMixin):
+class TransformerModel(BaseModel):
+    models_mapping = models_mapping
+    
     def __init__(
         self,
         load_path: str = 'bert-base-uncased',
@@ -173,15 +170,18 @@ class TransformerModel(BaseEstimator, ClassifierMixin):
         per_device_train_batch_size: int = 4,
         per_device_eval_batch_size: int = 4,
         learning_rate: float = 2e-5,
-        weight_decay: float = 0.01
+        weight_decay: float = 0.01,
+        **kwargs
     ) -> None:
+        super().__init__(load_path=load_path, save_path=save_path)
+        
         self.load_path = load_path
         self.save_path = save_path
 
         self.num_labels = num_labels
         self.device = device
-
-        self.load_models()
+        
+        self.model = self.load_from_path()
 
         self.run_name = run_name
 
@@ -196,16 +196,34 @@ class TransformerModel(BaseEstimator, ClassifierMixin):
         self.per_device_eval_batch_size = per_device_eval_batch_size
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
+        
+        if config.WANDB_DISABLED:
+            self.wandb = None
+            self.report_to = "all"
+        else:
+            self.wandb = wandb.init(
+                project=config.WANDB_PROJECT,
+                name=self.run_name,
+                entity=config.WANDB_ENTITY,
+                config={
+                    'epochs': self.epochs,
+                    'per_device_train_batch_size': self.per_device_train_batch_size,
+                    'per_device_eval_batch_size': self.per_device_eval_batch_size,
+                    'learning_rate': self.learning_rate,
+                    'weight_decay': self.weight_decay
+                }
+            )
+            self.report_to = "wandb"
 
-    def load_models(self):
+    def load_from_path(self):
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(self.load_path, use_fast=True)
         except Exception:
             self.tokenizer = AutoTokenizer.from_pretrained(self.load_path, use_fast=False)
 
-        self.model = AutoModelForSequenceClassification.from_pretrained(self.load_path, num_labels=self.num_labels).to(self.device)
+        return AutoModelForSequenceClassification.from_pretrained(self.load_path, num_labels=self.num_labels).to(self.device)
 
-    def save_models(self):
+    def save_to_path(self):
         self.trainer.save_model(self.save_path)
         self.tokenizer.save_pretrained(self.save_path)
         self.model.save_pretrained(self.save_path)
@@ -247,7 +265,7 @@ class TransformerModel(BaseEstimator, ClassifierMixin):
             output_dir=self.output_dir,
             logging_dir=self.logging_dir,
 
-            report_to="wandb",
+            report_to=self.report_to,
 
             num_train_epochs=self.epochs,
             per_device_train_batch_size=self.per_device_train_batch_size,
@@ -279,8 +297,13 @@ class TransformerModel(BaseEstimator, ClassifierMixin):
 
         self.trainer = trainer
 
-        # [optional] Finish the wandb run, necessary in notebooks
-        wandb.finish()
+        if self.wandb:
+            self.wandb.log(eval_results)
+            
+            # [optional] Finish the wandb run, necessary in notebooks
+            self.wandb.finish()
+            
+        self.save_models()
 
     def compute_predictions_details(self, df: pd.DataFrame):
         df_prep = df.copy()

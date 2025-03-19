@@ -4,13 +4,15 @@ FROM python:3.11.6-slim
 WORKDIR /app
 
 # Install Poetry
-RUN pip install poetry
+RUN pip install poetry==2.1.1
 
 # Copy Poetry dependency files separately (optimizing caching)
 COPY pyproject.toml poetry.lock* ./
 
 # Install dependencies without creating a virtual environment
 RUN poetry config virtualenvs.create false && poetry install --no-dev --no-root
+RUN touch README.md
+RUN poetry install --without dev
 
 # Copy the API source code **after** installing dependencies
 COPY src/api/ ./src/api/

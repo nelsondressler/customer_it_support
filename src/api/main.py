@@ -8,20 +8,16 @@ import uvicorn
 
 import config
 
-from saved_datasets.data_examples import email_examples
+from artifacts.saved_datasets.data_examples import email_examples
 
 from src.backend.evaluation import MetricsEvaluator
-from src.backend.preprocessing import SplitterPreprocessor, EmailPreprocessor, ResamplingPreprocessor, TextPreprocessor, LabelPreprocessor, VectorizerPreprocessor
+from src.backend.preprocessors import SplitterPreprocessor, EmailPreprocessor, ResamplingPreprocessor, TextPreprocessor, LabelPreprocessor, VectorizerPreprocessor
 from src.backend.models import BaselineModel, TransformerModel
 from src.backend.pipelines import PipelineModules
 
 from src.utils.pydantic_models import EmailInput, FitModelResponse, FitPipelineResponse, ModelInput, PipelineInput, PredictionResponse
 from src.utils.labels import label_queue_values, label_priority_values
 from src.utils.devices import get_available_device
-
-import wandb
-
-wandb.login()
 
 data_df = pd.DataFrame(email_examples)
 
@@ -139,17 +135,29 @@ def predict(email: EmailInput):
                     pipeline_queue = PipelineModules(
                         from_file=True,
                         file_path=config.BERT_PIPELINE_QUEUE_PATH,
+                        wandb=config.wandb,
                         device=device
                     )
 
                     pipeline_priority = PipelineModules(
                         from_file=True,
                         file_path=config.BERT_PIPELINE_PRIORITY_PATH,
+                        wandb=config.wandb,
                         device=device
                     )
                 elif config.LOAD_MODE == 'model':
-                    model_queue = TransformerModel(from_filte=True, load_path=config.BERT_MODEL_QUEUE_PATH, device=device)
-                    model_priority = TransformerModel(from_file=True, load_path=config.BERT_MODEL_PRIORITY_PATH, device=device)
+                    model_queue = TransformerModel(
+                        from_filte=True,
+                        load_path=config.BERT_MODEL_QUEUE_PATH,
+                        wandb=config.wandb,
+                        device=device
+                    )
+                    model_priority = TransformerModel(
+                        from_file=True,
+                        load_path=config.BERT_MODEL_PRIORITY_PATH,
+                        wandb=config.wandb,
+                        device=device
+                    )
 
                     pipeline_queue = PipelineModules(steps=[
                         ('email_preprocessor', EmailPreprocessor()),
@@ -168,18 +176,30 @@ def predict(email: EmailInput):
                     pipeline_queue = PipelineModules(
                         from_file=True,
                         file_path=config.DISTILBERT_PIPELINE_QUEUE_PATH,
+                        wandb=config.wandb,
                         device=device
                     )
 
                     pipeline_priority = PipelineModules(
                         from_file=True,
                         file_path=config.DISTILBERT_PIPELINE_PRIORITY_PATH,
+                        wandb=config.wandb,
                         device=device
                     )
 
                 elif config.LOAD_MODE == 'model':
-                    model_queue = TransformerModel(model_path=config.DISTILBERT_MODEL_QUEUE_PATH, device=device)
-                    model_priority = TransformerModel(model_path=config.DISTILBERT_MODEL_PRIORITY_PATH, device=device)
+                    model_queue = TransformerModel(
+                        from_file=True,
+                        load_path=config.DISTILBERT_MODEL_QUEUE_PATH,
+                        wandb=config.wandb,
+                        device=device
+                    )
+                    model_priority = TransformerModel(
+                        from_file=True,
+                        load_path=config.DISTILBERT_MODEL_PRIORITY_PATH,
+                        wandb=config.wandb,
+                        device=device
+                    )
 
                     pipeline_queue = PipelineModules(steps=[
                         ('email_preprocessor', EmailPreprocessor()),
@@ -243,6 +263,7 @@ def predict(email: EmailInput):
 @app.post("/fit", response_model=Union[FitModelResponse, FitPipelineResponse])
 async def fit(details_input: Union[ModelInput, PipelineInput]) -> PipelineModules:
     raise NotImplementedError('This endpoint is not implemented yet')
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
