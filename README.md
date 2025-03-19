@@ -109,28 +109,28 @@ Technologies and Tools:
 - Docker
 
 Project Instructions:
-Prerequisites:
-- Python installed (version 3.11.6)
-- Poetry installed (version 2.1.1)
-To run the code:
-- Download the project or clone directly from the repo on GitHub
-- Open the terminal on your OS
-- Navigate up to the project root folder (customer_it_support)
-- Run the script according to your OS:
-    - In case of Unix-based, run:
-        ```bash
-        ./run_all_sh
-        ```
+- Prerequisites:
+    - Python installed (version 3.11.6)
+    - Poetry installed (version 2.1.1)
+- To run the code:
+    - Download the project or clone directly from the repo on GitHub
+    - Open the terminal on your OS
+    - Navigate up to the project root folder (customer_it_support)
+    - Run the script according to your OS:
+        - In case of Unix-based, run:
+            ```bash
+            ./run_all_sh
+            ```
 
-    - In case of Windows, run:
-        ```bat
-        run_all.bat
-        ```
+        - In case of Windows, run:
+            ```bat
+            run_all.bat
+            ```
 
-- Open three tabs on your preferred browser and on each one enter the respective URL:
-    - API: http://0.0.0.0:8000/
-    - Gradio_App: http://127.0.0.1:7860/
-    - Streamlit_App: http://localhost:8501/
+    - Open three tabs on your preferred browser and on each one enter the respective URL:
+        - API: http://0.0.0.0:8000/
+        - Gradio_App: http://127.0.0.1:7860/
+        - Streamlit_App: http://localhost:8501/
 
 TODO List:
 - Split the code of API and UIs
